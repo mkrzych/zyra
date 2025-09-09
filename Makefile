@@ -12,7 +12,7 @@ install: ## Install dependencies
 dev-up: ## Start development environment
 	cp .env.example .env
 	cp .env apps/backend/.env
-	docker-compose up -d postgres redis minio
+	docker compose up -d postgres redis minio
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	pnpm db:migrate
@@ -21,11 +21,11 @@ dev-up: ## Start development environment
 	@echo "You can now run 'pnpm dev' to start the applications"
 
 dev-down: ## Stop development environment
-	docker-compose down
+	docker compose down
 
 dev-full: ## Start full development environment with all services
 	cp .env.example .env
-	docker-compose up
+	docker compose up
 
 db-migrate: ## Run database migrations
 	cd apps/backend && pnpm db:migrate
@@ -37,11 +37,11 @@ db-studio: ## Open Prisma Studio
 	cd apps/backend && pnpm db:studio
 
 clean: ## Clean up containers and volumes
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 
 logs: ## Show logs from all services
-	docker-compose logs -f
+	docker compose logs -f
 
 test: ## Run all tests
 	pnpm test
