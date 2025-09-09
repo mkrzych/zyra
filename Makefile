@@ -11,6 +11,7 @@ install: ## Install dependencies
 
 dev-up: ## Start development environment
 	cp .env.example .env
+	cp .env apps/backend/.env
 	docker-compose up -d postgres redis minio
 	@echo "Waiting for services to be ready..."
 	@sleep 10
