@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -23,7 +24,15 @@ model Organization {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  users User[]
+  users           User[]
+  clients         Client[]
+  projects        Project[]
+  tasks           Task[]
+  timesheetEntries TimesheetEntry[]
+  expenses        Expense[]
+  invoices        Invoice[]
+  files           File[]
+  notifications   Notification[]
 
   @@map("organizations")
 }
@@ -41,7 +50,13 @@ model User {
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  timesheetEntries TimesheetEntry[]
+  expenses         Expense[]
+  files            File[]
+  notifications    Notification[]
+  assignedTasks    Task[]           @relation("TaskAssignees")
+  approvedTimesheet TimesheetEntry[] @relation("ApprovedBy")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -56,4 +71,318 @@ enum UserRole {
   CLIENT
 
   @@map("user_role")
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  organizationId  String   @map("organization_id")
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  billingAddress  String?  @map("billing_address")
+  taxId           String?  @map("tax_id")
+  notes           String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projects     Project[]
+  invoices     Invoice[]
+
+  @@index([organizationId])
+  @@map("clients")
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  clientId       String?       @map("client_id")
+  name           String
+  code           String
+  description    String?
+  status         ProjectStatus @default(PLANNED)
+  budgetHours    Int?          @map("budget_hours")
+  budgetAmount   Decimal?      @map("budget_amount")
+  hourlyRate     Decimal?      @map("hourly_rate")
+  startDate      DateTime?     @map("start_date")
+  endDate        DateTime?     @map("end_date")
+  color          String?       // For UI display
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  tasks            Task[]
+  timesheetEntries TimesheetEntry[]
+  expenses         Expense[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, clientId])
+  @@map("projects")
+}
+
+model Task {
+  id             String     @id @default(cuid())
+  organizationId String     @map("organization_id")
+  projectId      String     @map("project_id")
+  parentId       String?    @map("parent_id")
+  title          String
+  description    String?
+  status         TaskStatus @default(TODO)
+  priority       Priority   @default(MEDIUM)
+  tags           String[]   @default([])
+  dueDate        DateTime?  @map("due_date")
+  estimatedHours Int?       @map("estimated_hours")
+  orderIndex     Int        @default(0) @map("order_index")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent           Task?            @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks         Task[]           @relation("TaskHierarchy")
+  assignees        User[]           @relation("TaskAssignees")
+  timesheetEntries TimesheetEntry[]
+
+  @@index([organizationId])
+  @@index([organizationId, projectId])
+  @@index([organizationId, status])
+  @@map("tasks")
+}
+
+model TimesheetEntry {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  projectId      String    @map("project_id")
+  taskId         String?   @map("task_id")
+  date           DateTime
+  minutes        Int
+  billable       Boolean   @default(true)
+  hourlyRate     Decimal?  @map("hourly_rate")
+  notes          String?
+  approvedBy     String?   @map("approved_by")
+  approvedAt     DateTime? @map("approved_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  approver     User?        @relation("ApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@index([organizationId, projectId])
+  @@index([organizationId, date])
+  @@map("timesheet_entries")
+}
+
+model Expense {
+  id             String            @id @default(cuid())
+  organizationId String            @map("organization_id")
+  userId         String            @map("user_id")
+  projectId      String?           @map("project_id")
+  date           DateTime
+  amount         Decimal
+  currency       String            @default("USD")
+  category       ExpenseCategory   @default(OTHER)
+  description    String
+  billable       Boolean           @default(true)
+  receiptFileId  String?           @map("receipt_file_id")
+  status         ExpenseStatus     @default(PENDING)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  receiptFile  File?        @relation(fields: [receiptFileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@index([organizationId, projectId])
+  @@index([organizationId, date])
+  @@map("expenses")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  clientId       String        @map("client_id")
+  number         String
+  title          String?
+  issueDate      DateTime      @map("issue_date")
+  dueDate        DateTime      @map("due_date")
+  status         InvoiceStatus @default(DRAFT)
+  currency       String        @default("USD")
+  subtotal       Decimal       @default(0)
+  taxRate        Decimal       @default(0) @map("tax_rate")
+  taxAmount      Decimal       @default(0) @map("tax_amount")
+  total          Decimal       @default(0)
+  paidAmount     Decimal       @default(0) @map("paid_amount")
+  notes          String?
+  pdfFileId      String?       @map("pdf_file_id")
+  sentAt         DateTime?     @map("sent_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pdfFile      File?          @relation(fields: [pdfFileId], references: [id], onDelete: SetNull)
+  lineItems    InvoiceItem[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId])
+  @@index([organizationId, clientId])
+  @@index([organizationId, status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id             String   @id @default(cuid())
+  invoiceId      String   @map("invoice_id")
+  description    String
+  quantity       Decimal  @default(1)
+  rate           Decimal
+  amount         Decimal
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model File {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  ownerId        String   @map("owner_id")
+  filename       String
+  originalName   String   @map("original_name")
+  mimeType       String   @map("mime_type")
+  size           Int
+  storageKey     String   @map("storage_key")
+  sha256         String?
+  url            String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
+  invoices     Invoice[]
+
+  @@index([organizationId])
+  @@index([organizationId, ownerId])
+  @@map("files")
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  userId         String           @map("user_id")
+  type           NotificationType
+  title          String
+  message        String
+  payload        Json?
+  readAt         DateTime?        @map("read_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, readAt])
+  @@map("notifications")
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+
+  @@map("project_status")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+
+  @@map("task_status")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+
+  @@map("priority")
+}
+
+enum ExpenseCategory {
+  TRAVEL
+  MEALS
+  OFFICE_SUPPLIES
+  SOFTWARE
+  EQUIPMENT
+  OTHER
+
+  @@map("expense_category")
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("expense_status")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+
+  @@map("invoice_status")
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  TIMESHEET_SUBMITTED
+  TIMESHEET_APPROVED
+  EXPENSE_SUBMITTED
+  EXPENSE_APPROVED
+  INVOICE_SENT
+  INVOICE_PAID
+  PROJECT_UPDATE
+  COMMENT_ADDED
+
+  @@map("notification_type")
 }
