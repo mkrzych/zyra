@@ -1,17 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Filter } from 'lucide-react';
+import Link from 'next/link';
 import { projectsAPI, clientsAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import ProjectForm from '@/components/projects/project-form';
 
 export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [clientId, setClientId] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  
+  const queryClient = useQueryClient();
 
   const { data: projectsData, isLoading } = useQuery({
     queryKey: ['projects', search, status, clientId],
@@ -66,10 +72,28 @@ export default function ProjectsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Projects</h1>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
+        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Create New Project</DialogTitle>
+              <DialogDescription>
+                Add a new project to start organizing tasks and tracking time.
+              </DialogDescription>
+            </DialogHeader>
+            <ProjectForm 
+              onSuccess={() => {
+                setIsCreateModalOpen(false);
+                queryClient.invalidateQueries({ queryKey: ['projects'] });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filters */}
@@ -123,75 +147,77 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project: any) => (
-            <Card key={project.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{project.code}</p>
-                  </div>
-                  <div
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                      project.status
-                    )}`}
-                  >
-                    {project.status.replace('_', ' ')}
-                  </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent>
-                {project.description && (
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {project.description}
-                  </p>
-                )}
-                
-                {project.client && (
-                  <p className="text-sm text-gray-500 mb-2">
-                    Client: {project.client.name}
-                  </p>
-                )}
-                
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  {project.budgetHours && (
-                    <div>
-                      <span className="text-gray-500">Budget:</span>
-                      <p className="font-medium">{project.budgetHours}h</p>
+            <Link key={project.id} href={`/app/projects/${project.id}`}>
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{project.name}</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">{project.code}</p>
                     </div>
+                    <div
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                        project.status
+                      )}`}
+                    >
+                      {project.status.replace('_', ' ')}
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                <CardContent>
+                  {project.description && (
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                      {project.description}
+                    </p>
                   )}
                   
-                  {project.budgetAmount && (
-                    <div>
-                      <span className="text-gray-500">Amount:</span>
-                      <p className="font-medium">${Number(project.budgetAmount).toLocaleString()}</p>
-                    </div>
+                  {project.client && (
+                    <p className="text-sm text-gray-500 mb-2">
+                      Client: {project.client.name}
+                    </p>
                   )}
                   
-                  {project.startDate && (
-                    <div>
-                      <span className="text-gray-500">Start:</span>
-                      <p className="font-medium">{formatDate(project.startDate)}</p>
-                    </div>
-                  )}
-                  
-                  {project.endDate && (
-                    <div>
-                      <span className="text-gray-500">End:</span>
-                      <p className="font-medium">{formatDate(project.endDate)}</p>
-                    </div>
-                  )}
-                </div>
-                
-                {project._count && (
-                  <div className="flex gap-4 mt-3 pt-3 border-t text-xs text-gray-500">
-                    <span>{project._count.tasks || 0} tasks</span>
-                    <span>{project._count.timesheetEntries || 0} time entries</span>
-                    <span>{project._count.expenses || 0} expenses</span>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {project.budgetHours && (
+                      <div>
+                        <span className="text-gray-500">Budget:</span>
+                        <p className="font-medium">{project.budgetHours}h</p>
+                      </div>
+                    )}
+                    
+                    {project.budgetAmount && (
+                      <div>
+                        <span className="text-gray-500">Amount:</span>
+                        <p className="font-medium">${Number(project.budgetAmount).toLocaleString()}</p>
+                      </div>
+                    )}
+                    
+                    {project.startDate && (
+                      <div>
+                        <span className="text-gray-500">Start:</span>
+                        <p className="font-medium">{formatDate(project.startDate)}</p>
+                      </div>
+                    )}
+                    
+                    {project.endDate && (
+                      <div>
+                        <span className="text-gray-500">End:</span>
+                        <p className="font-medium">{formatDate(project.endDate)}</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  
+                  {project._count && (
+                    <div className="flex gap-4 mt-3 pt-3 border-t text-xs text-gray-500">
+                      <span>{project._count.tasks || 0} tasks</span>
+                      <span>{project._count.timesheetEntries || 0} time entries</span>
+                      <span>{project._count.expenses || 0} expenses</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
