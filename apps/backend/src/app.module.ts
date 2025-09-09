@@ -3,6 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { UsersModule } from './users/users.module';
+import { ClientsModule } from './clients/clients.module';
+import { ProjectsModule } from './projects/projects.module';
+import { TasksModule } from './tasks/tasks.module';
+import { TimesheetsModule } from './timesheets/timesheets.module';
 import { CommonModule } from './common/common.module';
 import { HealthController } from './health.controller';
 
@@ -16,6 +20,10 @@ import { HealthController } from './health.controller';
     AuthModule,
     OrganizationsModule,
     UsersModule,
+    ClientsModule,
+    ProjectsModule,
+    TasksModule,
+    TimesheetsModule,
   ],
   controllers: [HealthController],
 })
